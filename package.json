@@ -1,6 +1,6 @@
 {
   "name": "@antone-br/render-picker",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "Dev-only toolkit for Next.js/React 19 and PrestaShop/Smarty: pick any element to copy its route, XPath, CSS selector, React component or .tpl template and source file:line, plus Ctrl+click to open the source in VS Code.",
   "keywords": [
     "react",
