@@ -9,7 +9,8 @@
 ## Métadonnées
 
 - `author` : `Antone Barbaud <antone.barbaud@icloud.com>`. Toujours cette adresse personnelle, jamais une adresse professionnelle.
-- `repository` / `homepage` / `bugs` : `https://github.com/Antone-br/render-picker`.
+- Projet personnel : aucune mention de l'employeur, de l'agence ou de leurs projets internes (nom, adresse, chemin local, outil interne) dans le code, les tests, les docs ou les commits.
+- `repository` / `homepage` / `bugs` : `https://github.com/antone-io/render-picker`.
 - `license` : MIT. Le fichier `LICENSE` porte `Copyright (c) <année> Antone Barbaud`.
 
 ## Versions (semver)

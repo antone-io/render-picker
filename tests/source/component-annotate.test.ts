@@ -204,7 +204,7 @@ describe("extractDirectSources (frames Webpack dev)", () => {
 
   it("exclut les internes Next (chemin absolu src/client/…)", () => {
     const out = extractDirectSources(
-      "    at LinkComponent (C:\\Users\\anton\\src\\client\\app-dir\\link.tsx:725:7)",
+      "    at LinkComponent (C:\\Users\\dev\\src\\client\\app-dir\\link.tsx:725:7)",
     );
     expect(out).toEqual([]);
   });

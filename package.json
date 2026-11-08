@@ -1,5 +1,5 @@
 {
-  "name": "@antone-br/render-picker",
+  "name": "@antone-io/render-picker",
   "version": "0.2.8",
   "description": "Dev-only toolkit for Next.js/React 19 and PrestaShop/Smarty: pick any element to copy its route, XPath, CSS selector, React component or .tpl template and source file:line, plus Ctrl+click to open the source in VS Code.",
   "keywords": [
@@ -20,13 +20,13 @@
     "ai-coding-agent",
     "claude-code"
   ],
-  "homepage": "https://github.com/antone-br/render-picker#readme",
+  "homepage": "https://github.com/antone-io/render-picker#readme",
   "bugs": {
-    "url": "https://github.com/antone-br/render-picker/issues"
+    "url": "https://github.com/antone-io/render-picker/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/antone-br/render-picker.git"
+    "url": "git+https://github.com/antone-io/render-picker.git"
   },
   "license": "MIT",
   "author": "Antone Barbaud <antone.barbaud@icloud.com>",
