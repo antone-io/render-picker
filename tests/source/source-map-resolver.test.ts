@@ -54,6 +54,17 @@ afterEach(() => {
 });
 
 describe("resolvePosition", () => {
+  it("même cadre résolu une seule fois (annotateur : mêmes piles pour chaque ligne d'une table)", async () => {
+    const chunk = "http://localhost:3000/_next/static/chunks/memo._.js";
+    mockFetch({
+      [chunk]: "code\n//# sourceMappingURL=memo._.js.map",
+      "http://localhost:3000/_next/static/chunks/memo._.js.map": MAP,
+    });
+    const first = resolvePosition(chunk, 2, 0);
+    expect(resolvePosition(chunk, 2, 0)).toBe(first);
+    expect(await first).toEqual({ source: "src/app/page.tsx", line: 2, column: 0 });
+  });
+
   it("résout via une sourcemap plain", async () => {
     const chunk = "http://localhost:3000/_next/static/chunks/a._.js";
     mockFetch({

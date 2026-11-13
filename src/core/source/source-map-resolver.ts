@@ -197,7 +197,37 @@ export function normalizeSourcePath(path: string): string {
   return match ? match[1]! : normalized;
 }
 
-export async function resolvePosition(
+/**
+ * Positions déjà résolues, par `url:ligne:colonne` : l'annotateur résout les mêmes cadres de pile pour
+ * chaque élément rendu par un composant (une table de 100 lignes = 100 fois les mêmes cadres). Liées au
+ * cache des chunks : vider celui-ci les oublie aussi.
+ */
+const resolvedByCache = new WeakMap<
+  ChunkCache,
+  Map<string, Promise<ResolvedPosition | null>>
+>();
+
+export function resolvePosition(
+  chunkUrl: string,
+  line: number,
+  column: number,
+): Promise<ResolvedPosition | null> {
+  const cache = chunkCache();
+  let resolvedPositions = resolvedByCache.get(cache);
+  if (!resolvedPositions) {
+    resolvedPositions = new Map();
+    resolvedByCache.set(cache, resolvedPositions);
+  }
+  const key = `${chunkUrl}:${line}:${column}`;
+  let resolved = resolvedPositions.get(key);
+  if (!resolved) {
+    resolved = resolvePositionUncached(chunkUrl, line, column);
+    resolvedPositions.set(key, resolved);
+  }
+  return resolved;
+}
+
+async function resolvePositionUncached(
   chunkUrl: string,
   line: number,
   column: number,
@@ -228,10 +258,22 @@ export async function resolvePosition(
   return null;
 }
 
+/** Lignes de chaque contenu source, découpées une seule fois (un fichier entier par appel sinon). */
+const sourceLines = new Map<string, string[]>();
+
+function linesOf(content: string): string[] {
+  let lines = sourceLines.get(content);
+  if (!lines) {
+    lines = content.split("\n");
+    sourceLines.set(content, lines);
+  }
+  return lines;
+}
+
 /** Ligne de source « non-code » : vide, ou déclaration TS effacée à la compilation. */
 function isNonCodeSourceLine(content: string | null, line: number): boolean {
   if (content == null) return false;
-  const raw = content.split("\n")[line - 1] ?? "";
+  const raw = linesOf(content)[line - 1] ?? "";
   const text = raw.trim();
   return (
     text === "" ||
