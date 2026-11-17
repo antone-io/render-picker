@@ -8,7 +8,7 @@ import {
   SECONDARY_SURFACE,
 } from "../core/inspector/constants/theme";
 import type { RenderPickerSettings } from "../core/settings";
-import { GearIcon, PanelIcon, SearchIcon } from "./icons";
+import { GearIcon, MapIcon, PanelIcon, SearchIcon } from "./icons";
 import { SettingsMenu } from "./settings-menu/settings-menu";
 import { ToolbarTooltip } from "./toolbar-tooltip";
 
@@ -47,6 +47,8 @@ export interface SettingsBarProps {
   searchOpen: boolean;
   /** Afficher les commandes VS Code (source/usage). Défaut : `true`. */
   showVsCode?: boolean;
+  /** Ouvre la fenêtre « Plan du site » (PrestaShop). Absent : bouton masqué. */
+  onOpenSitePlan?: () => void;
 }
 
 /**
@@ -67,6 +69,7 @@ export function SettingsBar({
   onToggleSearch,
   searchOpen,
   showVsCode = true,
+  onOpenSitePlan,
 }: SettingsBarProps) {
   return (
     <div
@@ -152,6 +155,25 @@ export function SettingsBar({
           <SearchIcon color={MUTED} />
         </button>
       </ToolbarTooltip>
+      {onOpenSitePlan && (
+        <ToolbarTooltip label="Plan du site">
+          <button
+            type="button"
+            data-rp-site-plan-btn=""
+            aria-label="Plan du site"
+            onClick={onOpenSitePlan}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = SECONDARY_BG_HOVER;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+            style={ghostButton(false)}
+          >
+            <MapIcon color={MUTED} />
+          </button>
+        </ToolbarTooltip>
+      )}
       <ToolbarTooltip label="Paramètres">
         <button
           type="button"

@@ -27,7 +27,7 @@ class RenderPicker extends Module
     {
         $this->name = 'renderpicker';
         $this->tab = 'administration';
-        $this->version = '0.3.0';
+        $this->version = '0.4.0';
         $this->author = 'Antone Barbaud';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -90,6 +90,8 @@ class RenderPicker extends Module
         Media::addJsDef([
             'renderPickerRoot' => $root,
             'renderPickerAdminDir' => $adminDirName,
+            // 4. Index des pages (contrôleur front `pages`) pour « Copier le plan du site ».
+            'renderPickerPagesUrl' => $this->context->link->getModuleLink($this->name, 'pages'),
         ]);
     }
 
@@ -163,6 +165,22 @@ class RenderPicker extends Module
             // compile, le coût se cumule vite (centaines de templates).
             if (!$inRaw && preg_match('/^\s*<[a-zA-Z]/', $line)) {
                 $out[] = '<!-- rp@' . $rel . ':' . $ln . ' -->';
+            }
+
+            // Contenu back-office d'une page CMS (`{$cms.content ...}`) : encadré par
+            // `rp-cms:<id>:<relpath>:<ligne>:<titre>` … `/rp-cms` pour que l'overlay
+            // modules l'affiche comme un rectangle « CMS #id titre ». `--` retiré du titre
+            // (fermerait le commentaire HTML).
+            if (!$inRaw && strpos($line, '{$cms.content') !== false) {
+                $line = preg_replace_callback(
+                    '/\{\$cms\.content(?:\'[^\']*\'|"[^"]*"|[^}\'"])*\}/',
+                    function ($m) use ($rel, $ln) {
+                        return '<!-- rp-cms:{$cms.id|intval}:' . $rel . ':' . $ln
+                            . ':{$cms.meta_title|replace:\'--\':\'-\' nofilter} -->'
+                            . $m[0] . '<!-- /rp-cms -->';
+                    },
+                    $line
+                );
             }
 
             $out[] = $line;

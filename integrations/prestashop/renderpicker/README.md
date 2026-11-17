@@ -55,6 +55,11 @@ permanence (plus besoin de piquer), un rectangle sur chaque **module racine** de
 nom + durée de rendu du hook (ms). Ctrl+clic (ou le geste configuré) sur un rectangle ouvre
 le `.tpl` correspondant dans l'éditeur, comme pour un pick normal.
 
+Les **pages CMS** apparaissent aussi (rectangle vert « CMS #id titre », sans durée) : le
+prefilter encadre `{$cms.content}` d'un marqueur `rp-cms`. Ctrl+clic ouvre le `.tpl` qui
+affiche le contenu ; « Copier l'URL de configuration » donne le lien d'édition de la page en
+back-office. Un gabarit CMS qui n'affiche pas `{$cms.content}` n'a pas de rectangle.
+
 Nécessite les overrides `override/classes/Module.php` + `override/classes/Hook.php`
 (fournis, voir `.claude/.docs/architecture.md` à la racine du repo) — sans eux, le toggle
 ne fait rien (aucun marqueur de durée dans le HTML) ; sans `Hook.php` spécifiquement, le
@@ -125,3 +130,31 @@ le même schéma : nouveau bump de version + script d'upgrade correspondant.
   pas le PHP exécuté par le module avant l'appel (assignation de variables…) — écart marginal en
   pratique. Un seul rectangle par module racine (pas de rectangle pour un widget qu'un module
   inclut lui-même dans son propre `.tpl`).
+
+## Plan du site
+
+Bouton **carte** dans la barre du picker (armé), à côté de l'engrenage : ouvre une fenêtre
+qui liste, de A à Z et en liens cliquables :
+
+- toutes les **pages CMS** ;
+- les **pages avec modules** : toutes les pages connues de PrestaShop (table des pages de
+  « Trafic et SEO », pages du cœur et pages de modules comme le blog), plus une catégorie et
+  un produit représentatifs, avec leurs modules.
+
+- les **autres liens** : tous les liens internes trouvés dans ces pages (catégories,
+  marques, blog, produits…), listés sans être chargés (modules inconnus).
+
+Les pages techniques (retours de paiement, validations, cron) sont écartées.
+
+Le titre ouvre la page dans l'onglet courant, le chemin dans un nouvel onglet.
+
+Deux affichages : **Liste**, ou **Arbre** (pages rangées d'après leur URL :
+`/content/1-livraison` sous `content`). Un champ filtre par page, URL ou module.
+« Copier en Markdown » copie la liste, « Copier l'arbre » copie l'arbre en texte
+(`├──` / `└──`).
+
+La liste vient du contrôleur `pages` du module
+(`index.php?fc=module&module=renderpicker&controller=pages`) ; chaque page est chargée en
+arrière-plan et ses modules sont lus dans les marqueurs `rp-module`. Compter quelques
+secondes. Un cache pleine page qui sert du HTML sans marqueur donne des pages sans module :
+le désactiver en local.

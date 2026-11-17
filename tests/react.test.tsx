@@ -1108,3 +1108,94 @@ describe("ContextMenu", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("SitePlan", () => {
+  const index = {
+    cms: [
+      { id: 2, title: "Livraison", url: "http://s.test/content/2-livraison" },
+      { id: 1, title: "À propos", url: "http://s.test/content/1-a-propos" },
+    ],
+    pages: [
+      { label: "Accueil", url: "http://s.test/" },
+      { label: "Contact", url: "http://s.test/contact" },
+    ],
+  };
+  const html: Record<string, string> = {
+    "http://s.test/content/2-livraison": "",
+    "http://s.test/content/1-a-propos": "",
+    "http://s.test/": "<!-- rp-module:cjhero::1:t/x.tpl:1 --><!-- rp-module:cjbrands::1:t/x.tpl:1 -->",
+    "http://s.test/contact": "",
+  };
+
+  const flush = async () => {
+    for (let i = 0; i < 10; i++) await act(async () => {});
+  };
+
+  it("liste les pages CMS et les pages avec modules, de A à Z, en liens", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string): Promise<unknown> =>
+        url === "/rp-pages"
+          ? { ok: true, status: 200, json: async () => index, text: async () => "" }
+          : { ok: true, status: 200, json: async () => null, text: async () => html[url] ?? "" },
+      ),
+    );
+    const { SitePlan } = await import("../src/ui/site-plan/site-plan");
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const onClose = vi.fn();
+
+    act(() => root.render(<SitePlan indexUrl="/rp-pages" onClose={onClose} />));
+    await flush();
+
+    const dialog = document.querySelector("[role=dialog]")!;
+    const links = Array.from(dialog.querySelectorAll("li > div > a:first-child")).map((a) => [
+      a.textContent,
+      a.getAttribute("href"),
+    ]);
+    expect(links).toEqual([
+      ["À propos", "http://s.test/content/1-a-propos"],
+      ["Livraison", "http://s.test/content/2-livraison"],
+      ["Accueil", "http://s.test/"],
+    ]);
+    expect(dialog.textContent).toContain("cjbrands");
+    const pathLink = dialog.querySelector("li > div > a:nth-child(2)")!;
+    expect(pathLink.textContent).toBe("/content/1-a-propos");
+    expect(pathLink.getAttribute("target")).toBe("_blank");
+    expect(dialog.textContent).not.toContain("Contact");
+
+    const arbre = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Arbre")!;
+    act(() => arbre.click());
+    const treeText = dialog.textContent ?? "";
+    expect(treeText).toContain("content");
+    expect(treeText).toContain("1-a-propos");
+    expect(Array.from(dialog.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Accueil", "À propos", "Livraison"]);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(onClose).toHaveBeenCalled();
+
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("index indisponible → message d'erreur", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404, json: async () => null, text: async () => "" })));
+    const { SitePlan } = await import("../src/ui/site-plan/site-plan");
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    act(() => root.render(<SitePlan indexUrl="/rp-pages" onClose={() => {}} />));
+    await flush();
+
+    expect(document.querySelector("[role=dialog]")!.textContent).toContain("Liste des pages indisponible");
+
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+});

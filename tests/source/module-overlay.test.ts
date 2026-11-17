@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildModuleTree,
+  cmsEditUrl,
   findModuleForElement,
   hookPositionsUrl,
   isModuleEnd,
   moduleConfigUrl,
   moduleDirPath,
   moduleTreeMarkdown,
+  parseCmsStart,
   parseModuleStart,
   scanModuleOverlays,
   type ModuleOverlayEntry,
@@ -18,7 +20,7 @@ function entry(
   name: string,
   rect: { left: number; top: number; width: number; height: number },
 ): ModuleOverlayEntry {
-  return { name, hookName: null, durationMs: 0, source: "t/x.tpl:1", rect, elements: [] };
+  return { name, cmsId: null, hookName: null, durationMs: 0, source: "t/x.tpl:1", rect, elements: [] };
 }
 
 afterEach(() => {
@@ -48,7 +50,51 @@ describe("parseModuleStart", () => {
 describe("isModuleEnd", () => {
   it("reconnaît le commentaire de fermeture", () => {
     expect(isModuleEnd(" /rp-module ")).toBe(true);
+    expect(isModuleEnd(" /rp-cms ")).toBe(true);
     expect(isModuleEnd("rp-module:x:1:y:1")).toBe(false);
+  });
+});
+
+describe("parseCmsStart", () => {
+  it("extrait id + source + titre (titre avec deux-points)", () => {
+    expect(parseCmsStart(" rp-cms:12:themes/t/templates/cms/page.tpl:58:Livraison : zones ")).toEqual({
+      id: 12,
+      title: "Livraison : zones",
+      source: "themes/t/templates/cms/page.tpl:58",
+    });
+  });
+
+  it("rejette un marqueur module", () => {
+    expect(parseCmsStart("rp-module:blockcart::1:t/x.tpl:1")).toBeNull();
+  });
+});
+
+describe("cmsEditUrl", () => {
+  it("adminDir fourni → URL d'édition AdminCmsContent", () => {
+    expect(cmsEditUrl("http://shop.test/", "admin222", 12)).toBe(
+      "http://shop.test/admin222/index.php?controller=AdminCmsContent&id_cms=12&updatecms=1",
+    );
+  });
+
+  it("adminDir absent → null", () => {
+    expect(cmsEditUrl("http://shop.test", undefined, 12)).toBeNull();
+  });
+});
+
+describe("scanModuleOverlays — pages CMS", () => {
+  it("une entrée CMS par paire rp-cms, sans durée", () => {
+    document.body.innerHTML =
+      '<!-- rp-cms:12:themes/t/templates/cms/page.tpl:58:Livraison --><div id="c"></div><!-- /rp-cms -->';
+    document.getElementById("c")!.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }) as DOMRect;
+    const [e] = scanModuleOverlays(document.body);
+    expect(e).toMatchObject({
+      name: "CMS #12 Livraison",
+      cmsId: 12,
+      hookName: null,
+      durationMs: null,
+      source: "themes/t/templates/cms/page.tpl:58",
+    });
   });
 });
 
@@ -195,6 +241,7 @@ describe("scanModuleOverlays", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]).toEqual({
       name: "blockcart",
+      cmsId: null,
       hookName: null,
       durationMs: 12.4,
       source: "themes/t/modules/blockcart/x.tpl:3",

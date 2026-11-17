@@ -26,3 +26,7 @@ export const MARGIN_FILL = "#B08355";
 export const MODULE_OVERLAY_BORDER = "1px solid rgba(217,119,6,0.9)";
 export const MODULE_OVERLAY_BG = "rgba(217,119,6,0.08)";
 export const MODULE_OVERLAY_LABEL_BG = "rgba(217,119,6,0.95)";
+/** Rectangles "pages CMS" (contenu back-office) : même overlay, teinte distincte des modules. */
+export const CMS_OVERLAY_BORDER = "1px solid rgba(13,148,136,0.9)";
+export const CMS_OVERLAY_BG = "rgba(13,148,136,0.08)";
+export const CMS_OVERLAY_LABEL_BG = "rgba(13,148,136,0.95)";

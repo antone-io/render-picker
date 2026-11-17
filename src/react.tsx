@@ -16,6 +16,7 @@ import {
   saveSettings,
 } from "./core/settings";
 import { enrichResult } from "./core/source/enrich";
+import { resolvePagesUrl } from "./core/source/site-plan";
 import { pickResultFromElement } from "./core/search/element-search";
 import { startCapture } from "./core/devpanel/capture";
 import { loadPanelState, savePanelState } from "./core/devpanel/panel-state";
@@ -53,6 +54,7 @@ import {
   TypeIcon,
 } from "./ui/icons";
 import { SettingsBar } from "./ui/settings-bar";
+import { SitePlan } from "./ui/site-plan/site-plan";
 import { useRenderPicker } from "./ui/use-render-picker";
 
 export type { PickResult } from "./core/types";
@@ -106,6 +108,8 @@ export const RenderPickerButton: FC<RenderPickerButtonProps> = ({
   const [hovered, setHovered] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sitePlanOpen, setSitePlanOpen] = useState(false);
+  const pagesUrl = resolvePagesUrl(window);
   const [panelOpen, setPanelOpen] = useState(() => loadPanelState().open);
   const [searchOpen, setSearchOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -256,6 +260,7 @@ export const RenderPickerButton: FC<RenderPickerButtonProps> = ({
   });
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  const closeSitePlan = useCallback(() => setSitePlanOpen(false), []);
 
   const contextMenuItems = useMemo(
     () => [
@@ -579,6 +584,15 @@ export const RenderPickerButton: FC<RenderPickerButtonProps> = ({
           onChangeShowModuleOverlay={setShowModuleOverlay}
           searchOpen={searchOpen}
           onToggleSearch={() => setSearchOpen((o) => !o)}
+          onOpenSitePlan={
+            pagesUrl
+              ? () => {
+                  setSettingsOpen(false);
+                  setSitePlanOpen(true);
+                  disarm();
+                }
+              : undefined
+          }
           onTogglePanel={() => {
             const next = !panelOpen;
             setPanelOpen(next);
@@ -639,6 +653,14 @@ export const RenderPickerButton: FC<RenderPickerButtonProps> = ({
         >
           {toast}
         </div>
+      )}
+
+      {sitePlanOpen && pagesUrl && (
+        <SitePlan
+          indexUrl={pagesUrl}
+          onClose={closeSitePlan}
+          onCopied={showToast}
+        />
       )}
     </>
   );

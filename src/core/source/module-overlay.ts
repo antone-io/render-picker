@@ -10,12 +10,16 @@
 import { moduleNameFromSource, parseTplMarker } from "./tpl-annotate";
 
 export interface ModuleOverlayEntry {
+  /** Nom technique du module, ou `CMS #<id> <titre>` pour une page CMS. */
   name: string;
+  /** Id de la page CMS (contenu back-office encadré par `rp-cms`), `null` pour un module. */
+  cmsId: number | null;
   /** Nom du hook qui a déclenché ce rendu (`displayFooter`…) — `null` si le rendu n'est
    * pas passé par `Hook::exec()` (override `Hook.php` absent/pas encore installé, ou
    * appel direct `->fetch()` hors hook). */
   hookName: string | null;
-  durationMs: number;
+  /** Durée de rendu du hook, `null` pour une page CMS (contenu en base, pas de rendu mesuré). */
+  durationMs: number | null;
   /** `relpath:ligne` — réutilisable tel quel comme `data-source`. */
   source: string;
   rect: { left: number; top: number; width: number; height: number };
@@ -37,9 +41,28 @@ export function parseModuleStart(
   return { name: m[1]!, hookName: m[2] ? m[2] : null, durationMs: Number(m[3]), source: m[4]! };
 }
 
-/** Vrai si le commentaire ferme un bloc `rp-module`. Pur. */
+const CMS_START_RE = /^rp-cms:(\d+):(.+?:\d+):(.*)$/;
+
+/** `rp-cms:12:themes/x/templates/cms/page.tpl:58:Livraison` → `{ id, title, source }`.
+ * Posé par le prefilter Smarty autour de `{$cms.content}` (voir `renderpicker.php`). Pur. */
+export function parseCmsStart(text: string): { id: number; title: string; source: string } | null {
+  const m = CMS_START_RE.exec(text.trim());
+  if (!m) return null;
+  return { id: Number(m[1]), title: m[3]!.trim(), source: m[2]! };
+}
+
+/** Vrai si le commentaire ferme un bloc `rp-module` ou `rp-cms`. Pur. */
 export function isModuleEnd(text: string): boolean {
-  return text.trim() === "/rp-module";
+  const t = text.trim();
+  return t === "/rp-module" || t === "/rp-cms";
+}
+
+/** URL back-office d'édition d'une page CMS (`AdminCmsContent`, redirigé vers la page
+ * Symfony en 1.7.8). Pas de token, même raisonnement que `moduleConfigUrl`. Pur. */
+export function cmsEditUrl(origin: string, adminDir: string | undefined, cmsId: number): string | null {
+  if (!adminDir) return null;
+  const params = new URLSearchParams({ controller: "AdminCmsContent", id_cms: String(cmsId), updatecms: "1" });
+  return `${origin.replace(/\/$/, "")}/${adminDir}/index.php?${params.toString()}`;
 }
 
 /**
@@ -255,7 +278,8 @@ function climbExclusiveWrapper(el: Element): Element {
 
 /**
  * Parcourt `root` (ordre document) à la recherche des paires `rp-module`/`/rp-module`
- * et retourne une entrée par module racine trouvé (rectangle englobant des éléments
+ * (et `rp-cms`/`/rp-cms`, contenu back-office d'une page CMS) et retourne une entrée par
+ * module racine trouvé (rectangle englobant des éléments
  * encadrés). Les paires imbriquées ne devraient pas exister (l'override PHP ne wrappe
  * qu'à profondeur 0) ; si elles apparaissent quand même, elles sont traitées comme des
  * entrées indépendantes plutôt que de planter.
@@ -266,7 +290,11 @@ export function scanModuleOverlays(root: Node = document.body): ModuleOverlayEnt
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
   let node: Node | null = walker.nextNode();
   while (node) {
-    const start = parseModuleStart((node as Comment).data);
+    const data = (node as Comment).data;
+    const cms = parseCmsStart(data);
+    const start = cms
+      ? { name: `CMS #${cms.id}${cms.title ? ` ${cms.title}` : ""}`, hookName: null, durationMs: null, source: cms.source }
+      : parseModuleStart(data);
     if (start) {
       const elements: Element[] = [];
       let sib: Node | null = node.nextSibling;
@@ -279,6 +307,7 @@ export function scanModuleOverlays(root: Node = document.body): ModuleOverlayEnt
       if (rect) {
         entries.push({
           name: start.name,
+          cmsId: cms ? cms.id : null,
           hookName: start.hookName,
           durationMs: start.durationMs,
           source: start.source,

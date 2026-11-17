@@ -1,9 +1,17 @@
 import { IGNORE_ATTR } from "../constants/behavior";
-import { MODULE_OVERLAY_BG, MODULE_OVERLAY_BORDER, MODULE_OVERLAY_LABEL_BG } from "../constants/layout";
+import {
+  CMS_OVERLAY_BG,
+  CMS_OVERLAY_BORDER,
+  CMS_OVERLAY_LABEL_BG,
+  MODULE_OVERLAY_BG,
+  MODULE_OVERLAY_BORDER,
+  MODULE_OVERLAY_LABEL_BG,
+} from "../constants/layout";
 import { OVERLAY_Z } from "../constants/picker";
 import { resolveAdminDir } from "../../dev/admin-config";
 import { resolveProjectRoot } from "../../dev/project-root";
 import {
+  cmsEditUrl,
   findModuleForElement,
   hookPositionsUrl,
   initModuleOverlayScan,
@@ -25,7 +33,7 @@ export interface ModuleOverlayPaths {
   relative: string | null;
   /** Chemin disque hôte complet (ex. `C:\Users\...\public_html\...\modules\<nom>`). */
   absolute: string | null;
-  /** URL back-office "configurer ce module" — `null` si le dossier admin n'est pas exposé
+  /** URL back-office "configurer ce module" (ou "modifier la page" pour une page CMS) — `null` si le dossier admin n'est pas exposé
    * (`window.renderPickerAdminDir`, voir `renderpicker.php`). */
   configUrl: string | null;
   /** URL back-office de la page "Positions" (tous les hooks) — `null` si `hookName` est
@@ -58,9 +66,20 @@ export function setModuleOverlayContextMenuHandler(
  * chemin disque hôte complet) — `null` si la racine projet n'est pas résolue (Ctrl+clic
  * désactivé dans ce cas aussi). */
 export function resolveModulePaths(entry: ModuleOverlayEntry): ModuleOverlayPaths {
-  const configUrl = moduleConfigUrl(window.location.origin, resolveAdminDir(window), entry.name);
+  const adminDir = resolveAdminDir(window);
+  if (entry.cmsId !== null) {
+    return {
+      name: entry.name,
+      hookName: null,
+      relative: null,
+      absolute: null,
+      configUrl: cmsEditUrl(window.location.origin, adminDir, entry.cmsId),
+      hookPositionsUrl: null,
+    };
+  }
+  const configUrl = moduleConfigUrl(window.location.origin, adminDir, entry.name);
   const hookPositions = entry.hookName
-    ? hookPositionsUrl(window.location.origin, resolveAdminDir(window))
+    ? hookPositionsUrl(window.location.origin, adminDir)
     : null;
   const root = resolveProjectRoot(window, document).root;
   if (!root) {
@@ -113,6 +132,7 @@ export function resolveModuleContextFor(
 function render(layer: HTMLElement, entries: ModuleOverlayEntry[]): void {
   layer.textContent = "";
   for (const entry of entries) {
+    const isCms = entry.cmsId !== null;
     const box = document.createElement("div");
     box.setAttribute("data-source", entry.source);
     assign(box, {
@@ -121,15 +141,15 @@ function render(layer: HTMLElement, entries: ModuleOverlayEntry[]): void {
       top: `${entry.rect.top}px`,
       width: `${entry.rect.width}px`,
       height: `${entry.rect.height}px`,
-      border: MODULE_OVERLAY_BORDER,
-      background: MODULE_OVERLAY_BG,
+      border: isCms ? CMS_OVERLAY_BORDER : MODULE_OVERLAY_BORDER,
+      background: isCms ? CMS_OVERLAY_BG : MODULE_OVERLAY_BG,
       boxSizing: "border-box",
       pointerEvents: "none",
     });
 
     const label = document.createElement("span");
     const nameWithHook = entry.hookName ? `${entry.name} (${entry.hookName})` : entry.name;
-    label.textContent = `${nameWithHook} — ${entry.durationMs} ms`;
+    label.textContent = entry.durationMs === null ? nameWithHook : `${nameWithHook} — ${entry.durationMs} ms`;
     assign(label, {
       position: "absolute",
       top: "-18px",
@@ -138,7 +158,7 @@ function render(layer: HTMLElement, entries: ModuleOverlayEntry[]): void {
       borderRadius: "4px",
       font: "600 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
       color: "#fff",
-      background: MODULE_OVERLAY_LABEL_BG,
+      background: isCms ? CMS_OVERLAY_LABEL_BG : MODULE_OVERLAY_LABEL_BG,
       whiteSpace: "nowrap",
       pointerEvents: "none",
     });
@@ -208,7 +228,7 @@ export function initModuleOverlaySurface(): () => void {
   const stopScan = initModuleOverlayScan((entries) => {
     console.warn(`[render-picker] module-overlay : ${entries.length} module(s) détecté(s)`);
     for (const entry of entries) {
-      console.warn(`[render-picker] module ${entry.name} — ${entry.durationMs} ms — ${entry.source}`);
+      console.warn(`[render-picker] module ${entry.name} — ${entry.durationMs ?? "-"} ms — ${entry.source}`);
     }
     current = entries;
     mountedEntries = entries;
