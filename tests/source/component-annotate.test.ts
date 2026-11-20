@@ -27,7 +27,10 @@ vi.mock("../../src/core/source/source-map-resolver", () => ({
 
 import {
   annotate,
+  annotateTree,
   componentChain,
+  isCommittedFiber,
+  pendingAnnotations,
   extractDirectSources,
 } from "../../src/core/source/component-annotate";
 
@@ -289,5 +292,44 @@ describe("componentChain", () => {
     const el = document.createElement("div");
     document.body.appendChild(el);
     expect(componentChain(el)).toEqual([]);
+  });
+});
+
+describe("annotate — hydratation en cours", () => {
+  /** Élément sous une zone Suspense ; `hydrated` = une fibre de la paire n'est plus déshydratée. */
+  function underSuspense(hydrated: boolean): HTMLElement {
+    const boundary: Record<string, unknown> = {
+      tag: 13,
+      type: null,
+      return: null,
+      memoizedState: { dehydrated: {} },
+    };
+    boundary.alternate = hydrated
+      ? { tag: 13, type: null, return: null, memoizedState: null }
+      : { tag: 13, type: null, return: null, memoizedState: { dehydrated: {} } };
+    const el = document.createElement("div");
+    (el as unknown as Record<string, unknown>)["__reactFiber$x"] = {
+      type: function Panel() {},
+      return: boundary,
+    };
+    document.body.appendChild(el);
+    return el;
+  }
+
+  it("zone Suspense encore déshydratée : aucun attribut posé, élément en attente", () => {
+    const el = underSuspense(false);
+    expect(annotateTree(document.body)).toBe(0);
+    expect(el.hasAttribute("data-component")).toBe(false);
+    expect(pendingAnnotations()).toBe(1);
+  });
+
+  it("zone hydratée (fibre ancienne de la paire encore marquée) : annoté", () => {
+    const el = underSuspense(true);
+    expect(annotate(el)).toBe(true);
+    expect(el.getAttribute("data-component")).toBe("Panel");
+  });
+
+  it("hors Suspense : considéré validé", () => {
+    expect(isCommittedFiber({ type: null, return: null } as never)).toBe(true);
   });
 });

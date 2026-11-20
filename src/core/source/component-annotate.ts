@@ -18,6 +18,11 @@ type DebugInfoEntry = {
 type Fiber = {
   type: unknown;
   return: Fiber | null;
+  /** 13 = SuspenseComponent. */
+  tag?: number;
+  /** Suspense : `{ dehydrated }` tant que la zone n'est pas hydratée. */
+  memoizedState?: unknown;
+  alternate?: Fiber | null;
   _debugOwner?: Fiber | null;
   _debugInfo?: unknown[];
   _debugStack?: { stack?: string };
@@ -172,9 +177,40 @@ function getFiber(el: HTMLElement): Fiber | null {
 const SOURCE_RE = /(?:^|)(?:src|app)\/[^?]*\.(?:tsx?|jsx?|css)$/;
 const PROCESSED_KEY = "__rfComponentTraceDone__";
 
+const SUSPENSE_TAG = 13;
+
+function isDehydrated(f: Fiber | null | undefined): boolean {
+  const state = f?.memoizedState as { dehydrated?: unknown } | null | undefined;
+  return !!state?.dehydrated;
+}
+
+/**
+ * Fibre hors d'une zone `<Suspense>` encore déshydratée. Une tentative d'hydratation
+ * (abandonnée ou en cours) pose déjà la fibre sur les nœuds du HTML serveur ; si on
+ * ajoute `data-component` à ce moment, la tentative suivante voit un attribut en trop
+ * (« hydration mismatch »). La zone est validée quand l'une des deux fibres de la
+ * paire (`alternate`) n'est plus déshydratée — robuste aux pointeurs `return` anciens.
+ */
+export function isCommittedFiber(fiber: Fiber): boolean {
+  let f: Fiber | null = fiber.return;
+  while (f) {
+    if (f.tag === SUSPENSE_TAG && isDehydrated(f) && (!f.alternate || isDehydrated(f.alternate)))
+      return false;
+    f = f.return;
+  }
+  return true;
+}
+
+/** Éléments laissés de côté au dernier passage (hydratation pas encore validée). */
+let pendingCount = 0;
+export function pendingAnnotations(): number {
+  return pendingCount;
+}
+
 export function annotateTree(root: HTMLElement | Document): number {
   const els = root.querySelectorAll<HTMLElement>("*");
   let count = 0;
+  pendingCount = 0;
   for (const el of els) {
     if (annotate(el)) count++;
   }
@@ -184,6 +220,13 @@ export function annotateTree(root: HTMLElement | Document): number {
 export function annotate(el: HTMLElement): boolean {
   const done = (el as never as Record<string, boolean>)[PROCESSED_KEY];
   if (done) return false;
+
+  const fiberNow = getFiber(el);
+  if (fiberNow && !isCommittedFiber(fiberNow)) {
+    // Hydratation en cours : ne pas toucher au DOM, réessayé au prochain passage.
+    pendingCount++;
+    return false;
+  }
 
   const info = componentInfo(el);
   if (!info) return false;
@@ -269,14 +312,36 @@ async function resolveOwnerSource(
 }
 
 /** Annote le DOM puis suit les mutations. Retourne une fonction d'arrêt. */
+const PENDING_RETRY_MS = 300;
+const MAX_PENDING_RETRIES = 100;
+/** Durée pendant laquelle on repasse même sans nouveauté (hydratation progressive). */
+const SETTLE_MS = 10_000;
+
 export function initComponentAnnotator(): () => void {
   let queued = false;
   let frame: number | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let retries = 0;
+  const startedAt = Date.now();
   const run = () => {
     queued = false;
     frame = null;
     if (!document.body) return;
-    annotateTree(document.body);
+    const added = annotateTree(document.body);
+    // Une hydratation ne modifie pas le DOM : le MutationObserver ne nous rappelle
+    // pas quand React pose ses fibres. On repasse tant que des éléments attendent,
+    // que le passage précédent a encore annoté, ou au début du chargement (borné).
+    const settling = Date.now() - startedAt < SETTLE_MS;
+    if ((pendingAnnotations() > 0 || added > 0 || settling) && retries < MAX_PENDING_RETRIES) {
+      retries++;
+      if (retryTimer === null)
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          queue();
+        }, PENDING_RETRY_MS);
+    } else {
+      retries = 0;
+    }
   };
   const queue = () => {
     if (queued) return;
@@ -285,8 +350,8 @@ export function initComponentAnnotator(): () => void {
   };
   const observer = new MutationObserver(queue);
   const start = () => {
-    annotateTree(document.body);
     observer.observe(document.body, { childList: true, subtree: true });
+    run();
   };
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", start, { once: true });
@@ -296,5 +361,6 @@ export function initComponentAnnotator(): () => void {
     document.removeEventListener("DOMContentLoaded", start);
     observer.disconnect();
     if (frame !== null) cancelAnimationFrame(frame);
+    if (retryTimer !== null) clearTimeout(retryTimer);
   };
 }
